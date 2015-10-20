@@ -1,0 +1,5 @@
+nxagent-3.4.0-3.patch
+nxcomp-3.5.0-libpng.patch
+nxcomp-slave-channel.patch
+nxcomp-version.patch
+nxcomp-reconnect.patch

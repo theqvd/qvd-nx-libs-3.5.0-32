@@ -1,0 +1,1 @@
+libc6 (>= 2.15), qvd-libnx-x11-6 (>= 3.5.0.29), qvd-libnx-xcomposite1 (>= 3.5.0.29), qvd-libnx-xdmcp6 (>= 3.5.0.29), qvd-libnx-xext6 (>= 3.5.0.29), qvd-libnx-xfixes3 (>= 3.5.0.29), qvd-libnx-xpm4 (>= 3.5.0.29), qvd-libnx-xrender1 (>= 3.5.0.29), libxml2 (>= 2.7.4), qvd-libxcomp3, qvd-libxcompext3, qvd-libxcompshad3, zlib1g (>= 1:1.1.4)

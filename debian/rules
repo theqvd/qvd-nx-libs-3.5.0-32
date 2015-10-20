@@ -1,0 +1,164 @@
+#!/usr/bin/make -f
+
+NULL =
+
+export CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
+export CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
+export CXXFLAGS:=$(shell dpkg-buildflags --get CXXFLAGS)
+export LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
+
+export LIBDIR = "/usr/lib/$(shell dpkg-architecture -qDEB_BUILD_MULTIARCH)"
+export INCLUDEDIR = "/usr/include/$(shell dpkg-architecture -qDEB_BUILD_MULTIARCH)"
+
+%:
+	CONFIGURE="./configure --with-symbols --prefix=/usr/ --libdir=$(LIBDIR) --includedir=$(INCLUDEDIR)" dh $@ --with quilt
+
+# before build, we will remove unused code / bundled libraries (keep this in sync with roll-tarball.sh)
+UNUSED_FOLDERS           = "debian/CODE-REDUCTION_CLEANUP-UNUSED"
+CLEANUP_FOLDERS          = "debian/CODE-REDUCTION_CLEANUP-BRUTAL"
+UNNEEDED_BACKUPS         = "debian/CODE-REDUCTION_CLEANUP-BACKUPFILES"
+PRESERVE_SYMLINKED_FILES = "debian/CODE-REDUCTION_PRESERVE-SYMLINKED"
+PRESERVE_NEEDED_FILES    = "debian/CODE-REDUCTION_PRESERVE-NEEDED"
+PRESERVE_INCLUDED_FILES  = "debian/CODE-REDUCTION_PRESERVE-INCLUDED"
+
+override_dh_auto_clean:
+	rm -Rf nx-X11/.build-exports
+	dh_auto_clean
+
+override_dh_clean:
+	rm -f nx*/configure
+	rm -f nx*/changelog
+	rm -f doc/changelog
+	rm -f nx-X11/programs/Xserver/hw/nxagent/changelog
+	rm -f nx-X11/programs/nxauth/changelog
+	if [ ! -f replace.sh ] && [ ! -h replace.sh ]; then ln -s debian/Makefile.replace.sh replace.sh; fi
+	. ./replace.sh; set -x; ls debian/*.install.in | while read file; do rm -f $$(string_rep $$file .install.in .install); done
+	rm -fR replace.sh Makefile bin etc/rgb VERSION.x2goagent etc/keystrokes.cfg etc/nxagent.keyboard etc/x2goagent.keyboard
+	rm -f debian/libnx-xinerama1.postinst
+	rm -fR .preserve/
+	if [ -f nxcomp/.VERSION.NoMachine ]; then mv nxcomp/.VERSION.NoMachine nxcomp/VERSION; fi
+	dh_clean
+
+override_dh_installchangelog:
+
+	### the doc/changelog file is the actual NX (redistributed) ChangeLog
+	dh_installchangelog doc/changelog
+
+override_dh_install:
+
+	# handle builds for Debian squeeze (non multi-arch)
+	. ./replace.sh; set -x; if [ -z "$(DEB_BUILD_MULTIARCH)" ]; then \
+	    find debian/*.install.in | while read file; do \
+	        cat $$file | sed -e 's#/\*/#/#g' > $$(string_rep $$file .install.in .install); \
+	    done; \
+	else \
+	    find debian/*.install.in | while read file; do \
+	        cat $$file > $$(string_rep $$file .install.in .install); \
+	    done; \
+	fi
+
+	# remove static libs
+	rm debian/tmp/usr/lib/$(DEB_BUILD_MULTIARCH)/libXcomp.a
+	rm debian/tmp/usr/lib/$(DEB_BUILD_MULTIARCH)/libXcompshad.a
+
+	# remove extras, GL, and other unneeded headers
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/GL/
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/bitmaps/
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/XInput.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/XK*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/*Xv*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xtrap*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/Print*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/XRes*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/record*.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86vmode.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86vmstr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86misc.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86dga1.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86dgastr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86dga.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86dga1str.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86mscstr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/dmxext.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/dmxproto.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/bigreqstr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xcmiscstr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/XIproto.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86bigfstr.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/xf86bigfont.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/extensions/XI.h
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/fonts/
+	rm -R debian/tmp/usr/include/$(DEB_BUILD_MULTIARCH)/nx/X11/Xtrans/
+
+	dh_install --fail-missing
+
+override_dh_auto_install:
+	PREFIX=/usr dh_auto_install -Smakefile
+
+override_dh_auto_build:
+
+	# create copies of upstream changelogs so that names apply to Debian policy...
+	cp -a nx-X11/CHANGELOG nx-X11/changelog
+	cp -a nxcomp/CHANGELOG nxcomp/changelog
+	if [ -f nxcomp/VERSION ]; then cp nxcomp/VERSION nxcomp/.VERSION.NoMachine; fi
+	cp -a nxcompext/CHANGELOG nxcompext/changelog
+	cp -a nxcompshad/CHANGELOG nxcompshad/changelog
+	cp -a nx-X11/programs/Xserver/hw/nxagent/CHANGELOG nx-X11/programs/Xserver/hw/nxagent/changelog
+	cp -a nx-X11/programs/nxauth/CHANGELOG nx-X11/programs/nxauth/changelog
+	cp -a nxproxy/CHANGELOG nxproxy/changelog
+	ln -s debian/Makefile.nx-libs Makefile
+	ln -s debian/Makefile.replace.sh replace.sh
+	ln -s debian/wrappers bin
+	mkdir -p etc/
+	ln -s ../debian/keystrokes.cfg etc/keystrokes.cfg
+	ln -s ../debian/rgb etc/rgb
+	ln -s ../debian/nxagent.keyboard etc/nxagent.keyboard
+	ln -s ../debian/x2goagent.keyboard etc/x2goagent.keyboard
+	mkdir -p doc/
+	ln -s ../debian/changelog doc/changelog
+	ln -sf debian/VERSION VERSION.x2goagent
+	ln -sf ../debian/VERSION nxcomp/VERSION
+
+	# let's prep the libnx-xinerama1.postinst script with the value of the build systems's DEB_BUILD_MULTIARCH variable
+	sed debian/libnx-xinerama1.postinst.in -e 's/#DEB_BUILD_MULTIARCH#/$(DEB_BUILD_MULTIARCH)/' > debian/libnx-xinerama1.postinst
+
+	# make a copy of code to be preserved for build
+	mkdir -p .preserve
+	for path in `cat $(PRESERVE_SYMLINKED_FILES)` `cat $(PRESERVE_NEEDED_FILES)` `cat $(PRESERVE_INCLUDED_FILES)`; do \
+	    if echo $$path | grep -E "^#.*"; then continue; fi; \
+	    test -d $$path && mkdir -p .preserve/$$path || mkdir -p .preserve/$$(dirname $$path); \
+	    cp -av $$path .preserve/$$path; \
+	done
+
+	# remove unused code / bundled libraries (see at the top of the debian/rules file)
+        # for the exact list of files and folders
+	rm -Rf `cat $(UNUSED_FOLDERS)`
+	rm -Rf `cat $(CLEANUP_FOLDERS)`
+	rm -Rf `cat $(UNNEEDED_BACKUPS)`
+
+	# copy to-be-preserved files back into code tree
+	cp -av .preserve/* .
+	rm -Rf .preserve/
+
+	LOCAL_LDFLAGS="$(LDFLAGS)" SHLIBGLOBALSFLAGS="$(LDFLAGS)" SHLIBDIR="$(LIBDIR)" PREFIX=/usr dh_auto_build --parallel
+
+override_dh_strip:
+	dh_strip -pqvd-libnx-x11-6 --dbg-package=qvd-libnx-x11-6-dbg
+	dh_strip -pqvd-libnx-xau6 --dbg-package=qvd-libnx-xau6-dbg
+	dh_strip -pqvd-libnx-xcomposite1 --dbg-package=qvd-libnx-xcomposite1-dbg
+	dh_strip -pqvd-libnx-xdamage1 --dbg-package=qvd-libnx-xdamage1-dbg
+	dh_strip -pqvd-libnx-xdmcp6 --dbg-package=qvd-libnx-xdmcp6-dbg
+	dh_strip -pqvd-libnx-xext6 --dbg-package=qvd-libnx-xext6-dbg
+	dh_strip -pqvd-libnx-xfixes3 --dbg-package=qvd-libnx-xfixes3-dbg
+	dh_strip -pqvd-libnx-xinerama1 --dbg-package=qvd-libnx-xinerama1-dbg
+	dh_strip -pqvd-libnx-xpm4 --dbg-package=qvd-libnx-xpm4-dbg
+	dh_strip -pqvd-libnx-xrandr2 --dbg-package=qvd-libnx-xrandr2-dbg
+	dh_strip -pqvd-libnx-xrender1 --dbg-package=qvd-libnx-xrender1-dbg
+	dh_strip -pqvd-libnx-xtst6 --dbg-package=qvd-libnx-xtst6-dbg
+	dh_strip -pqvd-libxcomp3 --dbg-package=qvd-libxcomp3-dbg
+	dh_strip -pqvd-libxcompshad3 --dbg-package=qvd-libxcompshad3-dbg
+	dh_strip -pqvd-libxcompext3 --dbg-package=qvd-libxcompext3-dbg
+	dh_strip -pqvd-nxagent --dbg-package=qvd-nxagent-dbg
+	dh_strip -pqvd-nxproxy --dbg-package=qvd-nxproxy-dbg
+	dh_strip -pqvd-nxauth --dbg-package=qvd-nxauth-dbg
+
